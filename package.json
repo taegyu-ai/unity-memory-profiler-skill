@@ -1,0 +1,28 @@
+{
+  "name": "com.taegyu-ai.unity-memory-profiler-skill",
+  "version": "0.1.0",
+  "displayName": "Memory Profiler Skill (Preview)",
+  "description": "Analyzes Unity Memory Profiler snapshots through the Unity AI Assistant — a preview skill ahead of an official built-in one. Runs a Wide Survey across Unity object types, native subsystems, and the managed heap, then drills into candidates and suggests reductions.",
+  "unity": "6000.3",
+  "dependencies": {
+    "com.unity.memoryprofiler": "1.1.0",
+    "com.unity.ai.assistant": "2.12.0-pre.2"
+  },
+  "samples": [
+    {
+      "displayName": "Default Overlays (playbook + project-customization starter)",
+      "description": "Starting templates for the analysis skill's playbook (general know-how) and project-customization (this project's accepted costs) overlays. Import to seed Assets/ with editable defaults. Without importing, the skill still works in baseline-only mode.",
+      "path": "Samples~/DefaultOverlays"
+    }
+  ],
+  "keywords": [
+    "memory",
+    "profiler",
+    "ai-assistant",
+    "skill"
+  ],
+  "author": {
+    "name": "taegyu-ai"
+  },
+  "license": "MIT"
+}

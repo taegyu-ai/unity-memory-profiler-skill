@@ -1,0 +1,19 @@
+{
+    "name": "Unity.MemoryProfiler.Editor.Tests",
+    "rootNamespace": "Unity.MemoryProfiler.Editor.AgentTools",
+    "references": [
+        "Unity.MemoryProfiler.Editor",
+        "Unity.AI.Assistant.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
