@@ -2,6 +2,9 @@
 
 Different from the CPU profiler's linear hot-path drill. For memory, **Phase A generates a ranked candidate-group list once → Phase B repeatedly drills into groups**.
 
+## Mode detection (before Phase A / Comparison)
+Decide single vs comparison before anything else. If the request names `.snap` path(s) or an explicit intent, follow that (one path or "analyze this" → single; two paths or "what grew / diff / before-vs-after" → comparison). If the request is **ambiguous** (e.g. "analyze memory usage"), call `Unity.MemoryProfiler.GetLoadedSnapshotState` (read-only, loads nothing) and route by `loadedMode`: `"single"` → start at **A0** below; `"comparison"` → go to the **Comparison Phase** (SKILL.md "Comparison Mode"); `"none"` → tell the user to open a capture in the Memory Profiler window or supply a `.snap` path. An explicit request/path always overrides the detected mode.
+
 ## Phase A — Snapshot Overview (once)
 
 ### A0. Load customization overlays

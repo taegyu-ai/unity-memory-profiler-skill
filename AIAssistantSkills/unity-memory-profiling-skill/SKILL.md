@@ -5,6 +5,7 @@ required_editor_version: ">=6000.3.13"
 required_packages:
   com.unity.memoryprofiler: ">=1.1.0"
 tools:
+  - Unity.MemoryProfiler.GetLoadedSnapshotState
   - Unity.MemoryProfiler.Initialize
   - Unity.MemoryProfiler.GetMemoryOverview
   - Unity.MemoryProfiler.GetTopUnityObjectCategories
@@ -31,6 +32,14 @@ You analyze Unity Memory Profiler snapshots to find where memory goes and how to
 - **Unrooted** (formerly `Unknown`) is **different from Untracked**: it's native allocations with no root reference, and it **is** drillable — when a large `Unrooted`/`Unknown` subsystem shows up, use `GetUnrootedAllocationBreakdown` to attribute it to allocation sites + callstacks (workflow B4). Managed `GC.Alloc` spikes are out of scope → refer to the CPU Profiler.
 - **Number formatting (strict)**: tools return exact byte integers. When showing human-readable sizes, use the **same binary units as the Memory Profiler window** (1 KB = 1024 B, 1 MB = 1024², Unity `EditorUtility.FormatBytes` convention — **never** decimal ÷10⁶) and **always print the exact bytes** alongside, e.g. `10.8 MB (11,280,499 B)`. Compute derived values (averages, percentages) from the exact integers, not from rounded MB. This keeps your numbers consistent with what the user sees in the Memory Profiler UI.
 
+## Mode detection (do this first)
+There are two analysis modes: **single-snapshot** (Two-Phase survey below) and **comparison** (2-snapshot diff). Pick the mode in this order:
+1. **Explicit `.snap` path(s)** in the request → load them directly (one path → single `Initialize`; two paths → `InitializeComparison`). This overrides whatever the window has open.
+2. **Explicit mode intent** in the request → follow it: compare / diff / "what grew" / "before vs after" / regression-between-builds → **comparison**; "analyze this snapshot" / "survey memory" / OOM of one capture → **single**.
+3. **Neither given (ambiguous, e.g. "analyze memory usage")** → call `GetLoadedSnapshotState` and match the window: `loadedMode:"comparison"` → **Comparison Mode**; `loadedMode:"single"` → **Two-Phase Workflow**; `loadedMode:"none"` → tell the user no capture is loaded (ask them to open one in the Memory Profiler window or give a `.snap` path).
+
+**One-line rule: an explicit request or file path overrides the detected loaded mode; otherwise analyze in whatever mode the window is already in.** `GetLoadedSnapshotState` is read-only and loads nothing — it only tells you how to route.
+
 ## Two-Phase Workflow
 Read `references/memory-analysis-workflow.md` for the Golden Path, ranked-list construction, stop-condition, and per-group 5-slot output rules.
 
@@ -38,7 +47,7 @@ Read `references/memory-analysis-workflow.md` for the Golden Path, ranked-list c
 2. **Phase B — Group Drill (repeat)**: user picks one or more groups → for each, drill with the detail tools and emit the **5-slot output** (Identify / Quantify / Hypothesize / Recommend / Verify). After each group, check the **stop-condition**.
 
 ## Comparison Mode (2-snapshot diff)
-Use this mode — **not** the single-snapshot survey — when the user wants to **compare two snapshots**: "what grew / changed between", "memory leak / regression between builds", "before vs after", "diff snapshot A and B". B is the candidate/later capture, A the baseline; deltas are **B − A** (positive = grew). See `references/memory-analysis-workflow.md` "Comparison Phase".
+Use this mode — **not** the single-snapshot survey — when the user wants to **compare two snapshots**: "what grew / changed between", "memory leak / regression between builds", "before vs after", "diff snapshot A and B"; **or** when the request is ambiguous and `GetLoadedSnapshotState` reports `loadedMode:"comparison"` (see "Mode detection" above). B is the candidate/later capture, A the baseline; deltas are **B − A** (positive = grew). See `references/memory-analysis-workflow.md` "Comparison Phase".
 
 1. **`InitializeComparison`** — load the pair (omit both paths to use the Memory Profiler window's Compare pair; or pass both `.snap` paths). If `captureOriginA` or `captureOriginB` is `Editor`, stop (out of scope). If `residentAvailableBoth` is false, state up front that the diff is **committed-only**.
 2. **`GetComparisonOverview`** — ranked `typeGroupDeltas` (by `|committedDelta|`) + `subsystemDeltas` + whole-snapshot totals, each tagged `changeKind` (new/grew/shrank/freed/unchanged). Each type/subsystem row already carries **both** `committedA`/`committedB` (and resident, count A/B) — the absolute sizes, not just the delta.

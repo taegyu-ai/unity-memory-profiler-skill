@@ -101,6 +101,53 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
             };
         }
 
+        // ---------------------------------------------------------------- Loaded-mode detection
+
+        [AgentTool(
+            "Reports what the Memory Profiler window currently has loaded WITHOUT loading or changing anything: " +
+            "a single snapshot, a comparison pair (Compare mode), or nothing. Call this FIRST when the user did " +
+            "NOT specify single vs comparison and did NOT give .snap file paths — then route to Initialize " +
+            "(loadedMode 'single') or InitializeComparison (loadedMode 'comparison') to match what is already open.",
+            "Unity.MemoryProfiler.GetLoadedSnapshotState")]
+        public static LoadedSnapshotState GetLoadedSnapshotState()
+        {
+            var res = new LoadedSnapshotState { loadedMode = "none" };
+
+            var windows = Resources.FindObjectsOfTypeAll<MemoryProfilerWindow>();
+            var service = (windows != null && windows.Length > 0) ? windows[0].SnapshotDataService : null;
+            if (service == null)
+            {
+                res.note = "The Memory Profiler window is not open. Open it and load a capture, or call Initialize with a filePath.";
+                return res;
+            }
+            res.windowOpen = true;
+            res.compareMode = service.CompareMode;
+
+            bool baseValid = service.Base != null && service.Base.Valid;
+            bool comparedValid = service.Compared != null && service.Compared.Valid;
+
+            if (service.CompareMode && baseValid && comparedValid)
+            {
+                res.loadedMode = "comparison";
+                ResolveCaptureOrigin(service.Base, out var pa, out _, out _);
+                ResolveCaptureOrigin(service.Compared, out var pb, out _, out _);
+                res.platformA = pa; res.platformB = pb;
+            }
+            else if (baseValid)
+            {
+                res.loadedMode = "single";
+                ResolveCaptureOrigin(service.Base, out var p, out _, out _);
+                res.platform = p;
+                if (service.CompareMode)
+                    res.note = "Compare mode is on but only one snapshot is loaded — treated as single.";
+            }
+            else
+            {
+                res.note = "No valid snapshot is loaded. Open a capture in the Memory Profiler window, or call Initialize with a filePath.";
+            }
+            return res;
+        }
+
         // Loaded-snapshot priority, file fallback (ADR 0005).
         //  - filePath empty → reuse MemoryProfilerWindow.SnapshotDataService.Base (already crawled; not owned).
         //  - filePath given → load it ourselves via FileReader + PostProcess (owned; verified PoC path).
@@ -1935,6 +1982,16 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
         // [Serializable] public fields (Unity JsonUtility convention). See file header re: properties.
 
         // ---- Initialize
+        [Serializable] public class LoadedSnapshotState
+        {
+            public bool windowOpen;      // Memory Profiler window is open
+            public string loadedMode;    // "none" | "single" | "comparison"
+            public bool compareMode;     // raw MP window Compare toggle (may be on with only one snapshot loaded)
+            public string platform;      // single mode: RuntimePlatform of the loaded snapshot
+            public string platformA;     // comparison mode: baseline (Base)
+            public string platformB;     // comparison mode: candidate (Compared)
+            public string note;          // guidance when nothing / a half-loaded pair is present
+        }
         [Serializable] public class InitializeResult
         {
             public string error;          // non-null only when no snapshot could be resolved
