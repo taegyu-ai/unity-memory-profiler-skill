@@ -847,27 +847,64 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
             return res;
         }
 
-        // Engine/system namespace prefixes — managed frames in these are Unity-owned or BCL, not user code.
+        // Engine/system namespace prefixes — Mono managed frames in these are Unity-owned or BCL, not user code.
         static readonly string[] k_EngineNamespacePrefixes =
         {
             "UnityEngine.", "UnityEditor.", "UnityEngineInternal.", "Unity.", "System.", "Mono.", "Microsoft."
         };
 
-        // Classify a readable callstack: "user-code" (a managed .cs frame outside engine/system namespaces),
-        // "engine-managed" (managed .cs frames present but all Unity/system), or "native" (no managed frame).
+        // IL2CPP strips namespaces from the mangled symbol, so we can't match by namespace prefix like Mono does.
+        // Instead we denylist known engine/BCL declaring-type TOKENS (namespace-stripped). Coarser than the Mono
+        // path (type-name collisions possible), so an unknown token defaults to user-code — consistent with the
+        // "any user frame → user-code" rule and hedged by presenting the raw callstack. Extensible list.
+        static readonly HashSet<string> k_Il2cppEngineTypeTokens = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Object", "GameObject", "Component", "Behaviour", "MonoBehaviour", "Transform", "RectTransform",
+            "Animator", "Animation", "Renderer", "Mesh", "Material", "Shader", "Texture", "Texture2D", "Sprite",
+            "Camera", "Light", "Rigidbody", "Collider", "Resources", "AsyncOperation", "AsyncOperationBase",
+            "AsyncOperationHandle", "Task", "ExecutionContext", "MoveNextRunner", "AwaitTaskContinuation",
+            "AsyncTaskMethodBuilder", "SynchronizationContext", "UnitySynchronizationContext", "WorkRequest",
+            // Render pipeline (SRP/URP) + IMGUI — pure-engine C# render/GUI loops that IL2CPP strips of their
+            // UnityEngine.* namespace; distinctive names, low collision risk with user types.
+            "UniversalRenderPipeline", "RenderPipeline", "RenderPipelineManager", "RenderPipelineManagerProxy",
+            "ScriptableRenderContext", "GUI", "GUIStyle", "GUILayout", "GUIUtility", "GUIContent"
+        };
+
+        enum FrameKind { None, EngineManaged, UserManaged }
+
+        // Classify a single readable-callstack line as a managed frame (engine vs user) or not a managed frame,
+        // supporting BOTH Mono JIT and IL2CPP symbolication formats (a stack may even mix them).
+        static FrameKind ClassifyFrame(string line)
+        {
+            // Mono: "(Mono JIT Code) [File.cs:NN] Namespace.Type:Method (params)"
+            var monoType = ExtractManagedTypeName(line);
+            if (monoType != null)
+            {
+                foreach (var p in k_EngineNamespacePrefixes)
+                    if (monoType.StartsWith(p, StringComparison.Ordinal)) return FrameKind.EngineManaged;
+                return FrameKind.UserManaged;
+            }
+
+            // IL2CPP: "<idx> <module> <0xADDR> <Il2CppMangledSymbol>_m<hex> + <offset>"
+            var il2cppType = ExtractIl2cppTypeToken(line);
+            if (il2cppType != null)
+                return k_Il2cppEngineTypeTokens.Contains(il2cppType) ? FrameKind.EngineManaged : FrameKind.UserManaged;
+
+            return FrameKind.None;
+        }
+
+        // Classify a readable callstack: "user-code" (a managed frame outside engine/system), "engine-managed"
+        // (managed frames present but all Unity/system/BCL), or "native" (no managed frame). Works on Mono and IL2CPP.
         static string ClassifyCallstackOrigin(string callstack)
         {
             if (string.IsNullOrEmpty(callstack)) return "native";
             bool anyManaged = false;
             foreach (var line in callstack.Split('\n'))
             {
-                var type = ExtractManagedTypeName(line); // null if not a managed frame with debug info
-                if (type == null) continue;
+                var kind = ClassifyFrame(line);
+                if (kind == FrameKind.None) continue;
                 anyManaged = true;
-                bool engine = false;
-                foreach (var p in k_EngineNamespacePrefixes)
-                    if (type.StartsWith(p, StringComparison.Ordinal)) { engine = true; break; }
-                if (!engine) return "user-code";
+                if (kind == FrameKind.UserManaged) return "user-code";
             }
             return anyManaged ? "engine-managed" : "native";
         }
@@ -886,6 +923,26 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
             return colon > 0 ? typeMethod.Substring(0, colon) : null;
         }
 
+        // Matches an IL2CPP mangled managed-method symbol: "<Type>_<Method>_m<32-hex>" with optional
+        // "_gshared"/"_inline" suffixes. Used to tell a transpiled C# frame from a native C++ one.
+        static readonly Regex s_Il2cppManagedSymbol = new Regex(@"_m[0-9A-Fa-f]{16,}(_gshared|_inline)*$", RegexOptions.Compiled);
+
+        // Extract the declaring-type token of an IL2CPP frame, or null. Line shape (Xcode-style symbolication):
+        // "0   UnityFramework   0x0000000119042dc0 Character_ChangeAnimatorController_mDB46...E6D48 + 1184".
+        // The symbol is namespace-stripped, so we return the leading token before the first '_' (e.g. "Character").
+        // Native C++ frames (Itanium mangling, "_Z...") and system-module frames are rejected → treated as native.
+        static string ExtractIl2cppTypeToken(string line)
+        {
+            var parts = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries); // split on any whitespace run
+            if (parts.Length < 4) return null;
+            if (parts[1] != "UnityFramework") return null;                         // only the app binary carries IL2CPP managed symbols
+            var symbol = parts[3];
+            if (symbol.StartsWith("_Z", StringComparison.Ordinal)) return null;    // C++ Itanium mangling = native
+            if (!s_Il2cppManagedSymbol.IsMatch(symbol)) return null;               // not an IL2CPP managed method
+            int us = symbol.IndexOf('_');
+            return us > 0 ? symbol.Substring(0, us) : symbol;
+        }
+
         // ---- Unrooted comparison aggregation (step 9, comparison mode)
 
         struct UnrootedAgg { public ulong committed; public ulong resident; public long count; }
@@ -896,11 +953,22 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
         }
 
         // A readable callstack keyed for cross-snapshot join. siteId/symbols are process addresses (differ per
-        // capture), so we key on the SYMBOLICATED callstack instead — stable for the same code. Line numbers are
-        // stripped ("File.cs:315]" → "File.cs]") so the key also survives across builds where only lines shifted.
+        // capture), so we key on the SYMBOLICATED callstack instead — stable for the same code. Per-capture noise
+        // is normalized away so the key survives across captures/builds:
+        //   Mono   — line numbers ("File.cs:315]" → "File.cs]").
+        //   IL2CPP — runtime addresses ("0x000000011904...") and "+ <offset>" tails (both vary per capture),
+        //            leaving "<idx> <module> <symbol>" as the stable join key.
         static readonly Regex s_CallstackLineNo = new Regex(@":\d+\]", RegexOptions.Compiled);
+        static readonly Regex s_CallstackAddr = new Regex(@"0x[0-9A-Fa-f]+", RegexOptions.Compiled);
+        static readonly Regex s_CallstackOffset = new Regex(@" \+ \d+", RegexOptions.Compiled);
         static string CallstackSignature(string callstack)
-            => string.IsNullOrEmpty(callstack) ? "<no-callstack>" : s_CallstackLineNo.Replace(callstack, "]");
+        {
+            if (string.IsNullOrEmpty(callstack)) return "<no-callstack>";
+            var s = s_CallstackLineNo.Replace(callstack, "]");
+            s = s_CallstackAddr.Replace(s, "");
+            s = s_CallstackOffset.Replace(s, "");
+            return s;
+        }
 
         // Aggregate one snapshot's Unrooted allocations: total committed/resident (memory-map footprint, always),
         // and — when callstacks are present — per-memory-label and per-callstack-signature rollups (all sites).
