@@ -2,6 +2,15 @@
 
 All notable changes to this package are documented in this file.
 
+## [0.1.2] - 2026-07-14
+
+- Unrooted allocation analysis now understands IL2CPP (iOS) callstacks, not just Mono JIT. Sites
+  reachable from your scripts are classified `user-code`/app-actionable instead of all collapsing to
+  `native`, and comparison-mode Unrooted diffs join across captures. Validated on an iOS capture.
+- The analysis skill now detects whether the Memory Profiler window is in single or comparison
+  (Compare) mode and, when the request doesn't specify, analyzes in that mode — via the new read-only
+  `GetLoadedSnapshotState` tool. Explicit file paths or "compare/diff" intent still take precedence.
+
 ## [0.1.1] - 2026-07-13
 
 - Added a Korean README (`Documentation~/README.ko.md`), linked from the top of the English README.
