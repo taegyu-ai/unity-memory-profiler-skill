@@ -2,6 +2,11 @@
 
 All notable changes to this package are documented in this file.
 
+## [0.1.1] - 2026-07-13
+
+- Added a Korean README (`Documentation~/README.ko.md`), linked from the top of the English README.
+  Lives in a `~`-suffixed folder so it's excluded from Unity's asset import (no `.meta` needed).
+
 ## [0.1.0] - 2026-07-13
 
 Initial public preview release, distributed as a UPM package (git URL install).
