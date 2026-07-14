@@ -27,14 +27,12 @@ Ask the Assistant about a project's memory footprint and it runs a **Wide Survey
 **Package Manager (recommended)**: Window ▸ Package Manager ▸ `+` ▸ *Add package from git URL* ▸ paste:
 
 ```
-https://github.com/taegyu-ai/unity-memory-profiler-skill.git#v0.1.1
+https://github.com/taegyu-ai/unity-memory-profiler-skill.git
 ```
-
-Pinning a tag (`#v0.1.1`) is recommended — a git URL with no revision locks onto whatever the default branch's latest commit is at install time, which isn't reproducible across machines/teammates.
 
 Or add it directly to `Packages/manifest.json`:
 ```json
-"com.taegyu-ai.unity-memory-profiler-skill": "https://github.com/taegyu-ai/unity-memory-profiler-skill.git#v0.1.1"
+"com.taegyu-ai.unity-memory-profiler-skill": "https://github.com/taegyu-ai/unity-memory-profiler-skill.git"
 ```
 
 **Local/embedded source (for development or debugging the skill itself)**: clone this repo and either add it as a `file:` dependency in `manifest.json`, or drop the folder directly under your project's `Packages/`.

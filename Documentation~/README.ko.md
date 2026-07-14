@@ -27,14 +27,12 @@ Unity AI Assistant로 Memory Profiler 스냅샷을 분석하는 프리뷰 스킬
 **Package Manager (권장)**: Window ▸ Package Manager ▸ `+` ▸ *Add package from git URL* 을 누르고 아래 주소를 붙여넣으세요.
 
 ```
-https://github.com/taegyu-ai/unity-memory-profiler-skill.git#v0.1.1
+https://github.com/taegyu-ai/unity-memory-profiler-skill.git
 ```
-
-태그(`#v0.1.1`)를 박아두길 권합니다. revision 없이 git URL만 쓰면 설치 시점의 기본 브랜치 최신 커밋으로 고정되는데, 그러면 팀원마다 머신마다 받는 버전이 달라질 수 있습니다.
 
 `Packages/manifest.json`에 직접 추가해도 됩니다:
 ```json
-"com.taegyu-ai.unity-memory-profiler-skill": "https://github.com/taegyu-ai/unity-memory-profiler-skill.git#v0.1.1"
+"com.taegyu-ai.unity-memory-profiler-skill": "https://github.com/taegyu-ai/unity-memory-profiler-skill.git"
 ```
 
 **로컬/embedded 소스로 쓰기(스킬 자체를 개발·디버깅할 때)**: 이 repo를 클론해서 `manifest.json`에 `file:` 의존성으로 추가하거나, 프로젝트의 `Packages/` 밑에 폴더째로 넣으세요.
