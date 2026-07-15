@@ -2,6 +2,17 @@
 
 All notable changes to this package are documented in this file.
 
+## [0.1.4] - 2026-07-15
+
+- The analysis now states which snapshot it analyzed. `Initialize` returns the capture's `snapshotName`
+  (file name) and `productName` (the captured project's name), and `InitializeComparison` returns both
+  for the A/B pair — the skill prints `Analyzed snapshot: …` (single) or `Compared: A=… vs B=…`
+  (comparison) at the top of the result, so output is unambiguous when several captures are in play.
+- Project-scoped customization entries now match on the real project. Because `Initialize` exposes the
+  captured project's `productName`, a learned entry with a concrete `project=<name>` scope applies only
+  to that project's captures; `project=*` (still the default) continues to match any project, so existing
+  entries are unaffected.
+
 ## [0.1.3] - 2026-07-15
 
 - When no snapshot is loaded and no file path is given, the analysis skill no longer dead-ends. The new
