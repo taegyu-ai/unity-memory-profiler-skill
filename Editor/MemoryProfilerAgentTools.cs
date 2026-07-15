@@ -148,6 +148,69 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
             return res;
         }
 
+        // ---------------------------------------------------------------- Available-snapshot listing
+
+        [AgentTool(
+            "Lists the .snap capture files on disk WITHOUT loading any of them, so you can offer the user a " +
+            "capture to analyze when nothing is loaded in the Memory Profiler window. Call this when Initialize " +
+            "reports no snapshot and the user gave no filePath. Candidates are sorted most-useful-first (captures " +
+            "whose filename matches the current project, then most-recently-modified). Present them and, once the " +
+            "user picks one, call Initialize with that candidate's filePath.",
+            "Unity.MemoryProfiler.ListAvailableSnapshots")]
+        public static AvailableSnapshots ListAvailableSnapshots()
+        {
+            const int k_MaxCandidates = 20;
+            var productName = Application.productName;
+            var dir = MemoryProfilerSettings.AbsoluteMemorySnapshotStoragePath;
+
+            var res = new AvailableSnapshots
+            {
+                captureDirectory = dir,
+                productName = productName,
+                snapshots = new List<SnapshotCandidate>(),
+            };
+
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+            {
+                res.directoryExists = false;
+                res.note = $"No capture directory found at '{dir}'. Take a snapshot from the Memory Profiler " +
+                           "window (Capture button), or call Initialize with an absolute .snap path.";
+                return res;
+            }
+            res.directoryExists = true;
+
+            var candidates = Directory.GetFiles(dir, "*.snap", SearchOption.TopDirectoryOnly)
+                .Select(path =>
+                {
+                    var info = new FileInfo(path);
+                    var name = info.Name;
+                    return new SnapshotCandidate
+                    {
+                        fileName = name,
+                        filePath = info.FullName,
+                        sizeBytes = info.Length,
+                        lastModifiedUtc = info.LastWriteTimeUtc.ToString("o"),
+                        matchesCurrentProject = !string.IsNullOrEmpty(productName)
+                            && name.IndexOf(productName, StringComparison.OrdinalIgnoreCase) >= 0,
+                    };
+                })
+                // Project-matching captures first, then most-recently-modified.
+                .OrderByDescending(c => c.matchesCurrentProject)
+                .ThenByDescending(c => c.lastModifiedUtc, StringComparer.Ordinal)
+                .ToList();
+
+            res.totalCount = candidates.Count;
+            res.snapshots = candidates.Take(k_MaxCandidates).ToList();
+
+            if (candidates.Count == 0)
+                res.note = $"The capture directory '{dir}' contains no .snap files. Take a snapshot from the " +
+                           "Memory Profiler window (Capture button), or call Initialize with an absolute .snap path.";
+            else if (candidates.Count > k_MaxCandidates)
+                res.note = $"Showing the {k_MaxCandidates} most relevant of {candidates.Count} captures.";
+
+            return res;
+        }
+
         // Loaded-snapshot priority, file fallback (ADR 0005).
         //  - filePath empty → reuse MemoryProfilerWindow.SnapshotDataService.Base (already crawled; not owned).
         //  - filePath given → load it ourselves via FileReader + PostProcess (owned; verified PoC path).
@@ -165,7 +228,7 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
                     source = "loaded";
                     return loaded; // owned by the window — do NOT dispose.
                 }
-                error = "No snapshot is loaded in the Memory Profiler window. Open a capture there, or call Initialize with a filePath.";
+                error = "No snapshot is loaded in the Memory Profiler window. Call ListAvailableSnapshots to see captures on disk, open a capture in the window, or call Initialize with a filePath.";
                 return null;
             }
 
@@ -1991,6 +2054,23 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
             public string platformA;     // comparison mode: baseline (Base)
             public string platformB;     // comparison mode: candidate (Compared)
             public string note;          // guidance when nothing / a half-loaded pair is present
+        }
+        [Serializable] public class AvailableSnapshots
+        {
+            public string captureDirectory;  // MemoryProfilerSettings.AbsoluteMemorySnapshotStoragePath
+            public bool directoryExists;
+            public string productName;        // current project name, used for the matchesCurrentProject flag
+            public int totalCount;            // total .snap files found (may exceed snapshots.Count when capped)
+            public List<SnapshotCandidate> snapshots; // sorted: project match first, then most-recent
+            public string note;               // guidance when the directory is missing / empty / truncated
+        }
+        [Serializable] public class SnapshotCandidate
+        {
+            public string fileName;
+            public string filePath;           // absolute path to pass to Initialize(filePath)
+            public long sizeBytes;
+            public string lastModifiedUtc;    // ISO 8601 ("o") — lexically sortable
+            public bool matchesCurrentProject; // filename contains the current project name (case-insensitive)
         }
         [Serializable] public class InitializeResult
         {

@@ -6,6 +6,7 @@ required_packages:
   com.unity.memoryprofiler: ">=1.1.0"
 tools:
   - Unity.MemoryProfiler.GetLoadedSnapshotState
+  - Unity.MemoryProfiler.ListAvailableSnapshots
   - Unity.MemoryProfiler.Initialize
   - Unity.MemoryProfiler.GetMemoryOverview
   - Unity.MemoryProfiler.GetTopUnityObjectCategories
@@ -36,7 +37,7 @@ You analyze Unity Memory Profiler snapshots to find where memory goes and how to
 There are two analysis modes: **single-snapshot** (Two-Phase survey below) and **comparison** (2-snapshot diff). Pick the mode in this order:
 1. **Explicit `.snap` path(s)** in the request → load them directly (one path → single `Initialize`; two paths → `InitializeComparison`). This overrides whatever the window has open.
 2. **Explicit mode intent** in the request → follow it: compare / diff / "what grew" / "before vs after" / regression-between-builds → **comparison**; "analyze this snapshot" / "survey memory" / OOM of one capture → **single**.
-3. **Neither given (ambiguous, e.g. "analyze memory usage")** → call `GetLoadedSnapshotState` and match the window: `loadedMode:"comparison"` → **Comparison Mode**; `loadedMode:"single"` → **Two-Phase Workflow**; `loadedMode:"none"` → tell the user no capture is loaded (ask them to open one in the Memory Profiler window or give a `.snap` path).
+3. **Neither given (ambiguous, e.g. "analyze memory usage")** → call `GetLoadedSnapshotState` and match the window: `loadedMode:"comparison"` → **Comparison Mode**; `loadedMode:"single"` → **Two-Phase Workflow**; `loadedMode:"none"` → nothing is loaded, so call `ListAvailableSnapshots` and offer the captures it returns (see the "No snapshot loaded" branch in the workflow reference) instead of dead-ending.
 
 **One-line rule: an explicit request or file path overrides the detected loaded mode; otherwise analyze in whatever mode the window is already in.** `GetLoadedSnapshotState` is read-only and loads nothing — it only tells you how to route.
 
