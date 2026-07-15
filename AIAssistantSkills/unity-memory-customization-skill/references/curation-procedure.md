@@ -15,7 +15,7 @@ Both files record entries in the `<!-- entries:start -->` ~ `<!-- entries:end --
 ```
 <!-- entry:start id=<slug> -->
 ### [<classification>] <subject>
-- **scope**: platform=<iOS|Android|Editor|*>; project=*; type=<typeName|areaName|*>; captureOrigin=<Player|Editor|*>
+- **scope**: platform=<iOS|Android|Editor|*>; project=<productName|*>; type=<typeName|areaName|*>; captureOrigin=<Player|Editor|*>
 - **confidence**: <low|medium|high>
 - **observations**: <count> (<context1>; <context2>; ...)
 - **updated**: <YYYY-MM-DD>
@@ -31,7 +31,7 @@ Both files record entries in the `<!-- entries:start -->` ~ `<!-- entries:end --
 | `layer` | `playbook` (general) or `project` (project-specific). Decided in Step 2b. Determines which file the entry is recorded into. `accepted` is `project`-only. |
 | `id` | The **dedup key** — if the id matches an existing entry, its body is updated, an observation is appended, and count is incremented. **For a new entry, call with an empty id** — the tool (`DeriveEntryId`) derives a canonical slug (e.g. `s4.ios.texture2d.astc-mobile`, `acc.` prefix, dot-separated) from `classification+scope+subject`. If the Curator constructs the slug itself and passes it directly, it can diverge from the tool's derivation rule (e.g. `accepted_..._...` with underscores), which **causes the same insight to fail dedup and accumulate duplicates in the next session**. **Only when updating an existing entry**, pass back the **exact id** of that entry as returned by `GetCustomization`, unchanged. |
 | `classification` | `§1` / `§2` / `§3` / `§4` / `cross-cutting` / `accepted`. See the "Classification Guide" below. |
-| `scope` | All 4 fields must be specified. Use `*` where not applicable — **`project` is always `*`** (both layers; see the `accepted` note below). The analysis skill only applies entries whose scope matches. |
+| `scope` | All 4 fields must be specified. Use `*` where not applicable — **`project` defaults to `*`** (both layers; see the `accepted` note below), narrowed to a concrete product name only when the entry should apply to that project alone. The analysis skill only applies entries whose scope matches. |
 | `confidence` | `low` (1 snapshot) / `medium` (2-3) / `high` (4+). Managed by the Curator — see "Confidence Upgrade Criteria" below. |
 | `observations` | A count plus source context in parentheses (snapshot name, date, project). Count increments on merge. |
 | `body` | Markdown advice. If §1, include the threshold override value + rationale. **Must never include machine-measured figures (resident bytes, object count).** |
@@ -64,7 +64,7 @@ Scope is a **contract for the applicability range**. Narrower scope applies more
 | Memory budget is platform-dependent | Mobile stop threshold differs from PC |
 | captureOrigin=Editor is out of scope for analysis v1 | Editor captures are almost always scoped out |
 
-| Project-tied insight? | Handling (the scope's `project` field stays `*` either way) |
+| Project-tied insight? | Handling (the scope's `project` field defaults to `*`; narrow it only for the rare case below) |
 |---|---|
 | Insight is tied to a specific project's architecture ("this project doesn't use Addressables, so AssetBundle recommendations aren't needed") | Record it in the **project layer** (Step 2b) — the file itself is the project boundary |
 | Threshold depends on genre/scale (hyper-casual 50MB budget vs AAA mobile 350MB) | Note the genre in the body/`sourceContext`; if project-tuned, use the project layer |
@@ -78,9 +78,9 @@ Scope is a **contract for the applicability range**. Narrower scope applies more
 
 ### Step 2b — Choosing a Layer (`playbook` vs `project`)
 Once scope is set, decide which overlay to record into:
-- **`playbook`** (general): insights valid for other projects too — perspective, default thresholds, difficulty rating, general type/subsystem recommendations. Record the originating project in `sourceContext`/`observations`, **not** in the scope's `project` field (a concrete value never scope-matches).
-- **`project`** (project-specific): unique to *this* project — `accepted` acceptance costs, intentional characteristics, project-scoped threshold overrides. **Set the scope's `project` to `*`** here (the file location itself is the project boundary — see the `accepted` note above).
-- **Rule**: if the insight is valid *only for this project* (`accepted` / project-scoped override), use `project`. If it generalizes to other projects, use `playbook`. If uncertain, use `project` (narrower and safer). **The criterion for choosing the layer is whether the insight is project-specific, not the scope's `project` value.**
+- **`playbook`** (general): insights valid for other projects too — perspective, default thresholds, difficulty rating, general type/subsystem recommendations. Record the originating project in `sourceContext`/`observations`, and keep the scope's `project` at `*` (playbook is project-independent by definition).
+- **`project`** (project-specific): unique to *this* project — `accepted` acceptance costs, intentional characteristics, project-scoped threshold overrides. Leave the scope's `project` at `*` by default (the file location itself is the project boundary); narrow it to a concrete product name only when an entry should apply to that single project's captures.
+- **Rule**: if the insight is valid *only for this project* (`accepted` / project-scoped override), use `project`. If it generalizes to other projects, use `playbook`. If uncertain, use `project` (narrower and safer). **The criterion for choosing the layer is whether the insight is project-specific** — a separate axis from the scope's `project` value (which defaults to `*`).
 
 ---
 
@@ -96,7 +96,7 @@ Once scope is set, decide which overlay to record into:
 | `accepted` | **A project's intentionally accepted cost/characteristic** — something the analysis should exclude from improvement candidates (§5). The measured figure is still shown as-is; only the judgment is suppressed. | "10 resident 4K Texture2Ds are required for a special purpose — not an improvement target"; "Large ECS entity systems in battle scenes are an accepted cost" |
 
 > `accepted` is powerful, so scope it **narrowly by type/subsystem** (e.g. `type=ParticleSystem`). Too broad a scope can mask a genuine regression. In the body, include a one-line reason for why this is an intentional cost.
-> **Set `project` to `*`** — `project-customization.md` is a *per-project file*, so every entry inside it already belongs to this project (file location = project boundary). Moreover, the analysis skill cannot read the project name from a snapshot (`Initialize` does not expose the product name), so a concrete `project` value will fail scope-matching and instead **cause valid entries to be skipped**. This applies to **both layers**: record the originating project in `sourceContext`/`observations`, never in the scope's `project` field.
+> **Leave `project` at `*` by default** — `project-customization.md` is a *per-project file*, so every entry inside it already belongs to this project (file location = project boundary), and `*` keeps it applying to every capture analyzed against this project. The analysis skill *can* now read the captured project's name (`Initialize` returns `productName`), so a concrete `project` value **does** scope-match — narrow to it only when an entry must apply to one specific project's captures and not others. Record the originating project in `sourceContext`/`observations` either way.
 
 ---
 
@@ -160,7 +160,7 @@ Proposed entry:
 Record this entry? (yes / edit / cancel)
 ```
 
-(The example generalizes across projects, so `layer=playbook`. For `accepted` and other project-specific entries, use `layer=project` — the scope's `project` stays `*` in both cases; the layer choice follows the insight's project-specificity, not the scope value.)
+(The example generalizes across projects, so `layer=playbook` with `project=*`. For `accepted` and other project-specific entries, use `layer=project` — the scope's `project` still defaults to `*` (file = project boundary), narrowed to a concrete product name only when the entry must apply to one project alone. The layer choice follows the insight's project-specificity, a separate axis from the scope value.)
 
 ---
 

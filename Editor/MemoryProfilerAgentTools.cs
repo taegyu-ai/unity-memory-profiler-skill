@@ -86,6 +86,8 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
             {
                 source = source,
                 filePath = filePath,
+                snapshotName = SnapshotNameOf(cs),
+                productName = ProductNameOf(cs),
                 runtimePlatform = platform,
                 captureOrigin = captureOrigin,
                 captureOriginSignals = captureSignals,
@@ -262,6 +264,22 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
                     return true;
             }
             return false;
+        }
+
+        // Capture file name without extension (the name the user sees in the Memory Profiler window's
+        // snapshot list). FullPath is populated for both window-loaded and file-loaded snapshots.
+        static string SnapshotNameOf(CachedSnapshot cs)
+            => string.IsNullOrEmpty(cs?.FullPath) ? null : Path.GetFileNameWithoutExtension(cs.FullPath);
+
+        // The captured project's product name (MetaData.ProductName = TargetInfo.ProductName), used for
+        // project scope-matching. This is the SNAPSHOT's project — not the Editor's Application.productName —
+        // so it stays correct when analyzing a capture taken from a different project. Legacy captures with no
+        // ProfileTargetInfo get "Unknown Project" (mirrors MetaData.k_UnknownProductName); normalize that to
+        // null so the analysis skill drops the project scope dimension instead of matching a bogus name.
+        static string ProductNameOf(CachedSnapshot cs)
+        {
+            var pn = cs?.MetaData.ProductName;
+            return string.IsNullOrWhiteSpace(pn) || pn == "Unknown Project" ? null : pn;
         }
 
         // Capture origin (Player vs Editor) + platform string, in priority order. Extracted from
@@ -1242,6 +1260,8 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
             {
                 sourceA = srcA, sourceB = srcB,
                 filePathA = filePathA, filePathB = filePathB,
+                snapshotNameA = SnapshotNameOf(csA), snapshotNameB = SnapshotNameOf(csB),
+                productNameA = ProductNameOf(csA), productNameB = ProductNameOf(csB),
                 platformA = platformA, platformB = platformB,
                 captureOriginA = originA, captureOriginB = originB,
                 residentAvailableA = ResidentAvailableA,
@@ -2077,6 +2097,8 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
             public string error;          // non-null only when no snapshot could be resolved
             public string source;         // "loaded" | "file"
             public string filePath;       // null when analyzing the loaded snapshot
+            public string snapshotName;   // capture file name (no extension) — state this at the top of the analysis
+            public string productName;    // captured project's name (MetaData.ProductName); null for legacy "Unknown Project" captures. Use for project scope-matching.
             public string runtimePlatform;
             public string captureOrigin;  // Player | Editor | Uncertain
             public CaptureOriginSignals captureOriginSignals;
@@ -2281,6 +2303,10 @@ namespace Unity.MemoryProfiler.Editor.AgentTools
             public string sourceB;
             public string filePathA;      // null when using the window's Compare pair
             public string filePathB;
+            public string snapshotNameA;  // A (baseline) capture file name (no extension) — state A=…/B=… at the top of the diff
+            public string snapshotNameB;  // B (candidate/later) capture file name (no extension)
+            public string productNameA;   // A captured project's name; null for legacy "Unknown Project" captures
+            public string productNameB;   // B captured project's name; null for legacy "Unknown Project" captures
             public string platformA;
             public string platformB;
             public string captureOriginA; // Player | Editor | Uncertain

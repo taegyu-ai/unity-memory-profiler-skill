@@ -28,7 +28,7 @@ Collect the user's experience or insight about the analysis session. Ask clarify
 ### Step 2 — Generalize + Scope
 Transform the one-time observation into a reusable rule. Assign scope metadata to every entry:
 - `platform`: iOS / Android / Editor / `*`
-- `project`: **always `*`** — the analysis skill cannot read a project name from a snapshot, so a concrete value never scope-matches (it would silently disable the entry). The project layer's file location is itself the project boundary; record the originating project in `sourceContext` instead.
+- `project`: **default `*`**. The project layer's file location is already the project boundary, so `*` is the usual choice and records the originating project in `sourceContext`. You *may* narrow to a concrete project name when an entry should apply only to that specific project's captures — the analysis skill matches it against `Initialize`'s `productName` (the captured project's name), and `*` still matches any project.
 - `type`: Unity type name or AreaName (e.g. `Texture2D`, `SerializedFile`), or `*`
 - `captureOrigin`: Player / Editor / `*`
 
@@ -38,7 +38,7 @@ The more specific the scope, the narrower its application in future analyses —
 There are two overlays; decide which one this entry belongs to:
 - **`playbook`** (general, project-independent): the insight generalizes to other projects — analysis perspectives, default thresholds, difficulty, per-type/subsystem know-how. Lives in `playbook.md`; shareable.
 - **`project`** (project-dependent): tied to *this* project's intentional decisions — accepted costs, expected characteristics, project-specific threshold overrides. Lives in `project-customization.md`; not shared across projects.
-- **Rule of thumb**: if the insight is valid only for *this* project (an `accepted` cost or a project-tuned override), use `project`; if it generalizes to other projects, use `playbook`. When unsure, prefer `project` (narrower, safer). The criterion is the insight's project-specificity — the scope's `project` field stays `*` in both layers.
+- **Rule of thumb**: if the insight is valid only for *this* project (an `accepted` cost or a project-tuned override), use `project`; if it generalizes to other projects, use `playbook`. When unsure, prefer `project` (narrower, safer). The layer choice follows the insight's project-specificity; the scope's `project` field defaults to `*` in both layers (narrow it only for the rare case above).
 
 ### Step 3 — Classify
 Determine which section this insight belongs to (`accepted` is `project`-layer only):

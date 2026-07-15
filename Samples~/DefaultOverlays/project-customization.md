@@ -17,7 +17,7 @@ It applies **additively** on top of the baseline and `playbook.md` (the general 
 ## Format (the canonical block shared with playbook.md)
 Only the `<!-- entries:start -->` ~ `<!-- entries:end -->` region at the bottom is managed by the store tool (`RecordCustomization`, `layer=project`). The block format and fields are identical to the "Learned Entries format spec" in `playbook.md`. Differences:
 - `classification`: mainly **`accepted`** (accepted cost / intentional characteristic, §A below) + project-specific `§1` (threshold override) and `§3`/`§4` (project-specific recommendations).
-- `scope`: **set `project` to `*`** — this file itself is the project boundary (every entry in it is project-dependent by definition), and the analysis skill cannot read a project name from a snapshot (`Initialize` does not expose it), so a concrete value would fail scope-matching and silently disable the entry. Record the originating project in `sourceContext`/`observations` instead. For `accepted`, scope `type`/`subsystem` tightly.
+- `scope`: **`project` defaults to `*`** — this file itself is the project boundary (every entry in it is project-dependent by definition), so `*` keeps it applying to every capture analyzed against this project. The analysis skill *can* read the captured project's name (`Initialize` returns `productName`), so a concrete value **does** scope-match — narrow to it only when an entry must apply to one specific project's captures and not others. Record the originating project in `sourceContext`/`observations` either way. For `accepted`, scope `type`/`subsystem` tightly.
 
 ---
 

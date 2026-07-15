@@ -28,7 +28,7 @@ Only the `<!-- entries:start -->` ~ `<!-- entries:end -->` region at the bottom 
 ```
 
 - `classification` (playbook): `§1` threshold / `§2` difficulty / `§3` subsystem / `§4` type group / `cross-cutting`. (**`accepted` does not belong in the playbook** — it is project-dependent, so it is project-customization only.)
-- `scope`: all optional. **Set `project` to `*`** — the analysis skill cannot read a project name from a snapshot, so a concrete value never scope-matches; record the originating project in `observations`/`sourceContext` instead. Platform scoping is allowed (e.g. `platform=iOS`).
+- `scope`: all optional. **Keep `project` at `*`** — the playbook is project-independent by definition, so its entries should apply to any project; record the originating project in `observations`/`sourceContext` instead. Platform scoping is allowed (e.g. `platform=iOS`). (Concrete `project` scoping is a project-customization concern, not a playbook one.)
 - `id` (dedup): a slug of `classification + scope + subject`. Same id → merge. `confidence`: the Curator raises it as the insight recurs across snapshots.
 
 ---

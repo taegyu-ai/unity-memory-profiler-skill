@@ -15,9 +15,12 @@ just means that layer isn't available yet (fresh project, or the "Default Overla
 been imported into `Assets/`); proceed with baseline-only rules for that layer, silently, not as a problem
 to surface.
 
+**Scope-matching a learned entry**: apply an entry only if its `scope` matches this snapshot — match `platform`/`type`/`captureOrigin` as usual, and match `project` against Initialize's `productName`. `project=*` (the default) matches any project; a concrete `project` value applies only when it equals `productName`; if `productName` is null (legacy capture) drop the `project` dimension. This runs after A1, so if you called A0 first just defer the project-match until you have `productName`.
+
 ### A1. Initialize
 `Unity.MemoryProfiler.Initialize(filePath)` →
 - `captureOrigin == Editor` → **abort**, notify that this is out of v1 scope (Editor memory distorts Native/Subsystem analysis).
+- **Snapshot identity**: the result includes `snapshotName` (the capture file name) and `productName` (the captured project's name, or null for legacy captures). Keep both — `snapshotName` is stated at the top of the analysis (A3), and `productName` drives project scope-matching for the project overlay (A0).
 - **Metric selection (must be stated explicitly)**: check `residentAvailable`(=`hasSystemMemoryRegionsInfo`).
   - `true` → analyze based on **resident** (preferred metric).
   - `false` → no resident data (older Memory Profiler/Editor captures, some Android captures, etc.). **Analyze based on allocation size (committed)**, and **you must state at the top of the result: "This capture has no resident (physical footprint) information, so the analysis is based on allocation (committed)"**. Do not interpret a resident=null value as 0.
@@ -48,7 +51,7 @@ Merge the above results into a single ranked list, **sorted by resident % descen
   - **Graphics** is an estimate, so do not treat it as a precise figure.
 - **If a customization overlay is present**: add difficulty and recommended-priority (⭐/secondary/defer) columns (`playbook.md` §1·§2 defaults; project-specific overrides in `project-customization.md` §B). If not, sort only by size (committed if resident is unavailable).
 
-Present the ranked list to the user and let them choose which group to drill into. **If resident is unavailable for the capture, state at the top of the list that the ranking is committed-based.**
+Present the ranked list to the user and let them choose which group to drill into. **State the analyzed snapshot at the top of the result**: `Analyzed snapshot: <snapshotName>` (from Initialize). **If resident is unavailable for the capture, also state at the top of the list that the ranking is committed-based.**
 
 ## Phase B — Group Drill & Recommend (repeat)
 
@@ -96,6 +99,7 @@ A **separate mode** from a single survey. Triggers: "compare two snapshots / the
 - Both omitted → use the Memory Profiler window's **Compare pair** (Base+Compared). Both specified → load the files. Only one specified → error.
 - `captureOriginA` or `captureOriginB == Editor` → **abort** (out of scope).
 - `residentAvailableBoth == false` → state at the top of the result that the **comparison is committed-based**. Do not read a null resident field as 0.
+- **Snapshot identity**: the result includes `snapshotNameA`/`snapshotNameB` (the two capture file names) and `productNameA`/`productNameB`. Keep them — state which pair you compared at the top of the diff (C3), and use `productNameB` (the candidate's project) for project scope-matching.
 
 ### C2. GetComparisonOverview
 `Unity.MemoryProfiler.GetComparisonOverview(topN=50)` →
@@ -105,6 +109,7 @@ A **separate mode** from a single survey. Triggers: "compare two snapshots / the
 - ⚠️ **`countB`/`committedB` for the `MonoBehaviour`·`ScriptableObject` types can be undercounted** (a bug in the comparison-builder package): instances of **C# script subclasses newly introduced only in B (candidate)** are missing from the comparison tree (A·baseline values and subsystem·totals are unaffected). So if these two base types show a large `grew`/`new`, **the actual increase may be larger than reported** — if you need the exact absolute B value, drill with `SetComparisonDrillTarget("B")` + `GetUnityObjectTypeDetail` to confirm, and describe the increase as a "minimum" rather than asserting an exact figure. (A known limitation confirmed via oracle comparison.)
 
 ### C3. Ranked Comparison List
+- **State the compared pair at the top of the result**: `Compared: A=<snapshotNameA> vs B=<snapshotNameB>` (from InitializeComparison).
 - Sort by `|committedDelta|` (together with resident delta when resident is available). **Prioritize highlighting `new`·`grew`** (from an increase/leak/regression perspective).
 - GPU: same as single mode — comparison ItemData has no GPU split (committed/resident based). The unified-memory-platform caveat still applies.
 - `Untracked`/`Graphics(Estimated)`: even with a large committed delta, it's **virtual-based** → do not rank as a top candidate, caption it. subsystem `classification=Artifact/EditorOnly` → exclude from ranking.
