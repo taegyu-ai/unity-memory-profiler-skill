@@ -2,6 +2,16 @@
 
 All notable changes to this package are documented in this file.
 
+## [0.1.3] - 2026-07-15
+
+- When no snapshot is loaded and no file path is given, the analysis skill no longer dead-ends. The new
+  read-only `ListAvailableSnapshots` tool enumerates the `.snap` captures on disk (sorted so captures
+  matching the current project come first, then most recent) so it can offer you one to analyze; picking
+  it loads via `Initialize`.
+- Documented a benign console-noise case: loading some captures (notably iOS IL2CPP) prints a burst of
+  Memory Profiler package asserts from its "Shortest Path to Root" processing. These are non-fatal and do
+  not affect the analysis; the skill now recognizes them instead of treating them as an error.
+
 ## [0.1.2] - 2026-07-14
 
 - Unrooted allocation analysis now understands IL2CPP (iOS) callstacks, not just Mono JIT. Sites
